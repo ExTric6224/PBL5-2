@@ -1,0 +1,62 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*.so
+
+# C extensions
+*.pyd
+
+# Distribution / packaging
+.Python
+env/
+venv/
+ENV/
+.env
+.venv
+*.egg-info/
+dist/
+build/
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+*.cover
+*.py,cover
+.hypothesis/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# VS Code
+.vscode/
+
+# Temporary files
+*.tmp
+*.log
+*.swp
+*.swo
+*.bak
+*.orig
+
+# Audio files
+temp_recording.wav
+
+# Model files
+*.keras
+*.h5
+
+# Data files
+data/
+
+# Ignore specific files
+requirements.txt
+src/haarcascade_frontalface_default.xml
