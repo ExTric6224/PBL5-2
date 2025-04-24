@@ -58,5 +58,4 @@ temp_recording.wav
 data/
 
 # Ignore specific files
-requirements.txt
 src/haarcascade_frontalface_default.xml
