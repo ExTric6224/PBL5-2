@@ -50,10 +50,6 @@ htmlcov/
 # Audio files
 temp_recording.wav
 
-# Model files
-*.keras
-*.h5
-
 # Data files
 data/
 
