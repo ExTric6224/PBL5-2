@@ -30,7 +30,8 @@ class EmotionDetector:
     Quản lý các luồng xử lý nền (khuôn mặt, giọng nói) và cung cấp
     dữ liệu (frame, cảm xúc) cho bên ngoài (ví dụ: UIController thông qua luồng chính).
     """
-    def __init__(self, face_analyzer, cascade_path='src/haarcascade_frontalface_default.xml', enable_analysis=True):
+    def __init__(self, face_analyzer, cascade_path='src/haarcascade_frontalface_default.xml',
+             enable_analysis_face=True, enable_analysis_voice=True):
         # --- Components ---
         if not isinstance(face_analyzer, FaceAnalyzer):
              raise TypeError("'face_analyzer' phải là một instance của FaceAnalyzer.")
@@ -57,11 +58,12 @@ class EmotionDetector:
         self.voice_thread = None
         self.cap = None
         
-        self.enable_analysis_voice = enable_analysis
+        self.enable_analysis_face = enable_analysis_face
+        self.enable_analysis_voice = enable_analysis_voice
         self.emotion_history = []  # Danh sách lưu trữ các EmotionHistoryItem
 
     def _load_cascade(self, cascade_path):
-        # (Giữ nguyên)
+        # (Giữ nguyên)  
         if not os.path.exists(cascade_path): return None
         try:
             cascade = cv2.CascadeClassifier(cascade_path)
@@ -91,7 +93,7 @@ class EmotionDetector:
                 time.sleep(0.5)
                 continue
 
-            if self.enable_analysis:
+            if self.enable_analysis_face:
                 gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
                 faces = self.face_cascade.detectMultiScale(gray_frame, 1.1, 5, minSize=(40, 40))
                 processed_frame = frame.copy()
@@ -161,6 +163,15 @@ class EmotionDetector:
         """Vòng lặp chạy trong luồng riêng cho xử lý âm thanh."""
         print("Luồng âm thanh: Bắt đầu.")
         while not self.stop_event.is_set():
+            if not self.enable_analysis_voice:
+                # Gán xác suất 0.0 cho tất cả các nhãn cảm xúc
+                probabilities = {label: 0.0 for label in self.voice_analyzer.emotion_labels}
+                with self.emotion_lock:
+                    self.last_voice_emotion = "N/A"
+                    self.last_voice_probabilities = probabilities
+                time.sleep(1)
+                continue
+
             temp_wav = "temp_recording.wav"
             try:
                 # Ghi âm

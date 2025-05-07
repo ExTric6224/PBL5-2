@@ -107,7 +107,11 @@ class EmotionGUI:
                 bar = self.audio_bars.get(emo.lower())
                 if bar:
                     bar['value'] = prob * 100  # vì maximum=100
-
+        else:
+             # Reset thanh tiến trình nếu voice analysis bị tắt
+            for bar in self.audio_bars.values():
+                bar['value'] = 0
+                    
     def watch_history(self):
         if not hasattr(self, 'detector') or not self.detector:
             print("Emotion detector is not initialized.")
