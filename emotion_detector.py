@@ -62,6 +62,7 @@ class EmotionDetector:
         self.enable_analysis_voice = enable_analysis_voice
         self.emotion_history = []  # Danh sách lưu trữ các EmotionHistoryItem
         self.emotion_history = load_emotion_history_from_db("emotion_log.db")
+        self.can_send_to_UI = True;
 
     def _load_cascade(self, cascade_path):
         # (Giữ nguyên)  
@@ -88,57 +89,58 @@ class EmotionDetector:
             return
 
         while not self.stop_event.is_set():
-            ret, frame = self.cap.read()
-            if not ret:
-                print("Lỗi đọc frame từ webcam.")
-                time.sleep(0.5)
-                continue
+            if self.can_send_to_UI:
+                ret, frame = self.cap.read()
+                if not ret:
+                    print("Lỗi đọc frame từ webcam.")
+                    time.sleep(0.5)
+                    continue
 
-            if self.enable_analysis_face:
-                gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                faces = self.face_cascade.detectMultiScale(gray_frame, 1.1, 5, minSize=(40, 40))
-                processed_frame = frame.copy()
-                current_face_emotion_in_frame = "N/A"
+                if self.enable_analysis_face:   
+                    gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                    faces = self.face_cascade.detectMultiScale(gray_frame, 1.1, 5, minSize=(40, 40))
+                    processed_frame = frame.copy()
+                    current_face_emotion_in_frame = "N/A"
 
-                for (x, y, w, h) in faces:
-                    cv2.rectangle(processed_frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
-                    roi_gray = gray_frame[y:y + h, x:x + w]
-                    predicted = self.face_analyzer.analyzeFace(roi_gray)
-                    if predicted:
-                        # Lấy nhãn cảm xúc có xác suất cao nhất
-                        current_face_emotion_in_frame, prob = max(predicted.items(), key=lambda item: item[1])
-                        break
+                    for (x, y, w, h) in faces:
+                        cv2.rectangle(processed_frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+                        roi_gray = gray_frame[y:y + h, x:x + w]
+                        predicted = self.face_analyzer.analyzeFace(roi_gray)
+                        if predicted:
+                            # Lấy nhãn cảm xúc có xác suất cao nhất
+                            current_face_emotion_in_frame, prob = max(predicted.items(), key=lambda item: item[1])
+                            break
 
-                with self.frame_lock:
-                    self.latest_frame = processed_frame
+                    with self.frame_lock:
+                        self.latest_frame = processed_frame
 
-                if current_face_emotion_in_frame != "N/A":
+                    if current_face_emotion_in_frame != "N/A":
+                        with self.emotion_lock:
+                            if self.last_face_emotion != current_face_emotion_in_frame:
+                                # Thêm vào danh sách emotion_history
+                                emotion_item = EmotionHistoryItem(
+                                    timestamp=datetime.now(),
+                                    face_location=f"{x}x{y}",
+                                    duration=None,  # Hoặc duration tạm thời nếu bạn đo được thời gian hiện diện
+                                    result=current_face_emotion_in_frame,
+                                    source="Webcam",
+                                    emotion_distribution=predicted
+                                )
+                                self.emotion_history.append(emotion_item)
+    
+                            self.last_face_emotion = current_face_emotion_in_frame
+                            self.last_face_emotion_probabilities = prob
+
+                else:
+                    # Không phân tích: chỉ hiển thị frame gốc
+                    with self.frame_lock:
+                        self.latest_frame = frame.copy()
                     with self.emotion_lock:
-                        if self.last_face_emotion != current_face_emotion_in_frame:
-                             # Thêm vào danh sách emotion_history
-                            emotion_item = EmotionHistoryItem(
-                                timestamp=datetime.now(),
-                                face_location=f"{x}x{y}",
-                                duration=None,  # Hoặc duration tạm thời nếu bạn đo được thời gian hiện diện
-                                result=current_face_emotion_in_frame,
-                                source="Webcam",
-                                emotion_distribution=predicted
-                            )
-                            self.emotion_history.append(emotion_item)
-                            from db_utils import save_emotion_to_db
-                            save_emotion_to_db("emotion_log.db", emotion_item)
- 
-                        self.last_face_emotion = current_face_emotion_in_frame
-                        self.last_face_emotion_probabilities = prob
-
+                        self.last_face_emotion = "N/A"
+                        self.last_face_emotion_probabilities = 0.0
             else:
-                # Không phân tích: chỉ hiển thị frame gốc
-                with self.frame_lock:
-                    self.latest_frame = frame.copy()
-                with self.emotion_lock:
-                    self.last_face_emotion = "N/A"
-                    self.last_face_emotion_probabilities = 0.0
-
+                # Nếu không gửi được đến UI, chỉ cần chờ một chút
+                time.sleep(2)
         print("Luồng webcam: Đã dừng.")
         if self.cap:
             self.cap.release()
@@ -169,50 +171,52 @@ class EmotionDetector:
         """Vòng lặp chạy trong luồng riêng cho xử lý âm thanh."""
         print("Luồng âm thanh: Bắt đầu.")
         while not self.stop_event.is_set():
-            if not self.enable_analysis_voice:
-                # Gán xác suất 0.0 cho tất cả các nhãn cảm xúc
-                probabilities = {label: 0.0 for label in self.voice_analyzer.emotion_labels}
-                with self.emotion_lock:
-                    self.last_voice_emotion = "N/A"
-                    self.last_voice_probabilities = probabilities
-                time.sleep(1)
-                continue
+            if self.can_send_to_UI :
+                if not self.enable_analysis_voice:
+                    # Gán xác suất 0.0 cho tất cả các nhãn cảm xúc
+                    probabilities = {label: 0.0 for label in self.voice_analyzer.emotion_labels}
+                    with self.emotion_lock:
+                        self.last_voice_emotion = "N/A"
+                        self.last_voice_probabilities = probabilities
+                    time.sleep(1)
+                    continue
 
-            temp_wav = "temp_recording.wav"
-            try:
-                # Ghi âm
-                self.voice_analyzer.record_audio(filename=temp_wav, duration=3)
+                temp_wav = "temp_recording.wav"
+                try:
+                    # Ghi âm
+                    self.voice_analyzer.record_audio(filename=temp_wav, duration=3)
 
-                # Trích xuất Mel Spectrogram
-                mel = self.voice_analyzer.extract_mel_spectrogram(temp_wav)
+                    # Trích xuất Mel Spectrogram
+                    mel = self.voice_analyzer.extract_mel_spectrogram(temp_wav)
 
-                # Dự đoán cảm xúc
-                probabilities = self.voice_analyzer.predict_emotion(mel)
+                    # Dự đoán cảm xúc
+                    probabilities = self.voice_analyzer.predict_emotion(mel)
 
-                # Cập nhật cảm xúc giọng nói và lưu probabilities
-                with self.emotion_lock:
-                    self.last_voice_emotion = max(probabilities, key=probabilities.get)
-                    self.last_voice_probabilities = probabilities
+                    # Cập nhật cảm xúc giọng nói và lưu probabilities
+                    with self.emotion_lock:
+                        self.last_voice_emotion = max(probabilities, key=probabilities.get)
+                        self.last_voice_probabilities = probabilities
 
-                    # Ghi lịch sử
-                    emotion_item = EmotionHistoryItem(
-                        timestamp=datetime.now(),
-                        face_location=None,
-                        duration=3000,
-                        result=self.last_voice_emotion,
-                        source="Microphone",
-                    emotion_distribution=probabilities
-                    )
-                    self.emotion_history.append(emotion_item)
-                    from db_utils import save_emotion_to_db
-                    save_emotion_to_db("emotion_log.db", emotion_item)
-
+                        # Ghi lịch sử
+                        emotion_item = EmotionHistoryItem(
+                            timestamp=datetime.now(),
+                            face_location=None,
+                            duration=3000,
+                            result=self.last_voice_emotion,
+                            source="Microphone",
+                        emotion_distribution=probabilities
+                        )
+                        self.emotion_history.append(emotion_item)
 
 
-            except Exception as e:
-                print(f"Lỗi trong luồng xử lý âm thanh: {e}")
 
-            time.sleep(1)  # Thời gian chờ giữa các lần ghi âm
+                except Exception as e:
+                    print(f"Lỗi trong luồng xử lý âm thanh: {e}")
+                    time.sleep(1)  # Thời gian chờ giữa các lần ghi âm
+            else:
+                # Nếu không gửi được đến UI, chỉ cần chờ một chút
+                time.sleep(2)
+                
         print("Luồng âm thanh: Đã dừng.")
 
     # --- Điều khiển chính ---
@@ -328,8 +332,10 @@ if __name__ == "__main__":
         keep_running = False # Dừng vòng lặp
     finally:
         print("Bắt đầu quá trình dọn dẹp cuối cùng...")
-        # 1. Dừng các luồng xử lý nền
         if main_detector:
+            from db_utils import save_all_emotions_to_db
+            save_all_emotions_to_db("emotion_log.db", main_detector.emotion_history)
+            print("✅ Đã lưu toàn bộ lịch sử cảm xúc vào cơ sở dữ liệu.")
             print("Yêu cầu EmotionDetector dừng các luồng...")
             main_detector.stop() # Đợi các luồng kết thúc
             main_detector.cleanup() # Chạy cleanup của detector (nếu có)

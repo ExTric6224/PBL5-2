@@ -51,6 +51,28 @@ def load_emotion_history_from_db(db_path):
     conn.close()
     return history_items
 
+def save_all_emotions_to_db(db_path, history_items):
+    import sqlite3, json
+    from datetime import datetime
+
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    for item in history_items:
+        cursor.execute("""
+            INSERT INTO emotion_history (timestamp, source, result, face_location, duration, emotion_distribution)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (
+            item.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+            item.source,
+            item.result,
+            item.face_location,
+            item.duration,
+            json.dumps(item.emotion_distribution)
+        ))
+
+    conn.commit()
+    conn.close()
 
 # import sqlite3
 
@@ -72,17 +94,3 @@ def load_emotion_history_from_db(db_path):
 # conn.commit()
 # conn.close()
 
-# xóa dữ liệu trong bảng emotion_history
-# def clear_emotion_history(db_path):
-#     conn = sqlite3.connect(db_path)
-#     cursor = conn.cursor()
-
-#     cursor.execute("DELETE FROM emotion_history")
-
-#     conn.commit()
-#     conn.close()
-
-# if __name__ == "__main__":
-#     db_path = "emotion_log.db"  # Path to your database file
-#     clear_emotion_history(db_path)
-#     print("Emotion history cleared.")

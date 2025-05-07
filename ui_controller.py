@@ -116,10 +116,12 @@ class EmotionGUI:
         if not hasattr(self, 'detector') or not self.detector:
             print("Emotion detector is not initialized.")
             return
+        self.detector.can_send_to_UI = False  # k cho phép gửi dữ liệu đến UI
         # Toplevel mới
         win = Toplevel(self.root)
         win.title("Emotion History")
         win.geometry("800x350")
+        win.protocol("WM_DELETE_WINDOW", lambda: self._on_close_history(win))
 
         # Layout chia làm 2 cột: left (Treeview), right (detail)
         frame_main = ttk.Frame(win)
@@ -246,3 +248,7 @@ class EmotionGUI:
 
         print(f"🗑️ Đã xóa bản ghi #{item_id}")
 
+    def _on_close_history(self, window):
+        self.detector.can_send_to_UI = True
+        print("✅ Đã bật lại gửi dữ liệu cho UI sau khi đóng lịch sử.")
+        window.destroy()
