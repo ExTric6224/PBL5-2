@@ -1,0 +1,88 @@
+import sqlite3
+import json
+from datetime import datetime
+from emotion_history_item import EmotionHistoryItem
+
+def save_emotion_to_db(db_path, item):
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        INSERT INTO emotion_history (timestamp, source, result, face_location, duration, emotion_distribution)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, (
+        item.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+        item.source,
+        item.result,
+        item.face_location if item.face_location else None,
+        item.duration if item.duration else None,
+        json.dumps(item.emotion_distribution)  # serialize dict
+    ))
+
+    conn.commit()
+    conn.close()
+    
+def load_emotion_history_from_db(db_path):
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT timestamp, source, result, face_location, duration, emotion_distribution FROM emotion_history")
+    rows = cursor.fetchall()
+
+    history_items = []
+    for row in rows:
+        timestamp = datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S")
+        source = row[1]
+        result = row[2]
+        face_location = row[3]
+        duration = row[4]
+        emotion_distribution = json.loads(row[5]) if row[5] else {}
+
+        item = EmotionHistoryItem(
+            timestamp=timestamp,
+            face_location=face_location,
+            duration=duration,
+            result=result,
+            source=source,
+            emotion_distribution=emotion_distribution
+        )
+        history_items.append(item)
+
+    conn.close()
+    return history_items
+
+
+# import sqlite3
+
+# conn = sqlite3.connect("emotion_log.db")
+# cursor = conn.cursor()
+
+# cursor.execute("""
+# CREATE TABLE IF NOT EXISTS emotion_history (
+#     id INTEGER PRIMARY KEY AUTOINCREMENT,
+#     timestamp TEXT,
+#     source TEXT,
+#     result TEXT,
+#     face_location TEXT,
+#     duration INTEGER,
+#     emotion_distribution TEXT
+# )
+# """)
+
+# conn.commit()
+# conn.close()
+
+# xóa dữ liệu trong bảng emotion_history
+# def clear_emotion_history(db_path):
+#     conn = sqlite3.connect(db_path)
+#     cursor = conn.cursor()
+
+#     cursor.execute("DELETE FROM emotion_history")
+
+#     conn.commit()
+#     conn.close()
+
+# if __name__ == "__main__":
+#     db_path = "emotion_log.db"  # Path to your database file
+#     clear_emotion_history(db_path)
+#     print("Emotion history cleared.")

@@ -13,8 +13,8 @@ from face_analyzer import FaceAnalyzer
 from emotion_history_item import EmotionHistoryItem
 from voice_analyzer import VoiceAnalyzer
 
-# --- Import UIController ---
-# Không import trực tiếp ở đây, sẽ import trong khối __main__
+# db
+from db_utils import load_emotion_history_from_db
 
 # --- Thư viện âm thanh (vẫn giữ) ---
 try:
@@ -61,6 +61,7 @@ class EmotionDetector:
         self.enable_analysis_face = enable_analysis_face
         self.enable_analysis_voice = enable_analysis_voice
         self.emotion_history = []  # Danh sách lưu trữ các EmotionHistoryItem
+        self.emotion_history = load_emotion_history_from_db("emotion_log.db")
 
     def _load_cascade(self, cascade_path):
         # (Giữ nguyên)  
@@ -123,7 +124,10 @@ class EmotionDetector:
                                 source="Webcam",
                                 emotion_distribution=predicted
                             )
-                            self.emotion_history.append(emotion_item) 
+                            self.emotion_history.append(emotion_item)
+                            from db_utils import save_emotion_to_db
+                            save_emotion_to_db("emotion_log.db", emotion_item)
+ 
                         self.last_face_emotion = current_face_emotion_in_frame
                         self.last_face_emotion_probabilities = prob
 
@@ -200,6 +204,9 @@ class EmotionDetector:
                     emotion_distribution=probabilities
                     )
                     self.emotion_history.append(emotion_item)
+                    from db_utils import save_emotion_to_db
+                    save_emotion_to_db("emotion_log.db", emotion_item)
+
 
 
             except Exception as e:

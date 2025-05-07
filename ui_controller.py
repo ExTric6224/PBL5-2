@@ -173,6 +173,9 @@ class EmotionGUI:
         # Frame chứa các dòng cảm xúc
         self.detail_widgets['emo_dist_frame'] = ttk.Frame(frame_detail)
         self.detail_widgets['emo_dist_frame'].pack(fill='both', anchor='w')
+        # Nút xóa lịch sử
+        ttk.Button(frame_detail, text="🗑️ Delete Selected", bootstyle=DANGER, command=self.delete_selected_history).pack(pady=10)
+
         self.tree.bind("<<TreeviewSelect>>", self.on_select)
 
     def toggle_image_analysis(self):
@@ -221,4 +224,25 @@ class EmotionGUI:
         for emo, val in history_item.emotion_distribution.items():
             label = ttk.Label(self.detail_widgets['emo_dist_frame'], text=f"{emo}: {val*100:.1f}%")
             label.pack(anchor='w')
+    def delete_selected_history(self):
+        selected = self.tree.selection()
+        if not selected:
+            print("Không có mục nào được chọn để xóa.")
+            return
+
+        item_id = int(selected[0])
+        del self.detector.emotion_history[item_id]  # Xóa trong danh sách
+
+        self.tree.delete(selected[0])  # Xóa khỏi bảng Treeview
+
+        # Cập nhật lại Treeview (vì index đã thay đổi)
+        self.tree.delete(*self.tree.get_children())
+        for i, item in enumerate(self.detector.emotion_history):
+            self.tree.insert("", "end", iid=i, values=(
+                item.timestamp.strftime("%H:%M:%S %d/%m/%Y"),
+                item.result,
+                item.source
+            ))
+
+        print(f"🗑️ Đã xóa bản ghi #{item_id}")
 
