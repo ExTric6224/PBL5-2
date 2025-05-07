@@ -30,13 +30,13 @@ class EmotionDetector:
     Quản lý các luồng xử lý nền (khuôn mặt, giọng nói) và cung cấp
     dữ liệu (frame, cảm xúc) cho bên ngoài (ví dụ: UIController thông qua luồng chính).
     """
-    def __init__(self, face_analyzer, cascade_path='src/haarcascade_frontalface_default.xml',
+    def __init__(self, face_analyzer,voice_analyzer,cascade_path='src/haarcascade_frontalface_default.xml',
              enable_analysis_face=True, enable_analysis_voice=True):
         # --- Components ---
         if not isinstance(face_analyzer, FaceAnalyzer):
              raise TypeError("'face_analyzer' phải là một instance của FaceAnalyzer.")
         self.face_analyzer = face_analyzer
-        self.voice_analyzer = VoiceAnalyzer()  # Initialize as an instance of VoiceAnalyzer
+        self.voice_analyzer = voice_analyzer  # Initialize as an instance of VoiceAnalyzer
         self.face_cascade = self._load_cascade(cascade_path)
 
         if self.face_cascade is None:
@@ -118,7 +118,9 @@ class EmotionDetector:
                             emotion_item = EmotionHistoryItem(
                                 timestamp=datetime.now(),
                                 face_location=f"{x}x{y}",
+                                duration=None,  # Hoặc duration tạm thời nếu bạn đo được thời gian hiện diện
                                 result=current_face_emotion_in_frame,
+                                source="Webcam",
                                 emotion_distribution=predicted
                             )
                             self.emotion_history.append(emotion_item) 
@@ -186,7 +188,19 @@ class EmotionDetector:
                 # Cập nhật cảm xúc giọng nói và lưu probabilities
                 with self.emotion_lock:
                     self.last_voice_emotion = max(probabilities, key=probabilities.get)
-                    self.last_voice_probabilities = probabilities  # Lưu probabilities để gửi cho UI
+                    self.last_voice_probabilities = probabilities
+
+                    # Ghi lịch sử
+                    emotion_item = EmotionHistoryItem(
+                        timestamp=datetime.now(),
+                        face_location=None,
+                        duration=3000,
+                        result=self.last_voice_emotion,
+                        source="Microphone",
+                    emotion_distribution=probabilities
+                    )
+                    self.emotion_history.append(emotion_item)
+
 
             except Exception as e:
                 print(f"Lỗi trong luồng xử lý âm thanh: {e}")
@@ -256,10 +270,14 @@ if __name__ == "__main__":
     try:
         # 1. Khởi tạo FaceAnalyzer
         face_analyzer_inst = FaceAnalyzer(model_path=args.face_model)
-
+        
+        # khởi tạo VoiceAnalyzer 
+        voi_analyzer_inst = VoiceAnalyzer();
+        
         # 2. Khởi tạo EmotionDetector
         main_detector = EmotionDetector(
             face_analyzer=face_analyzer_inst,
+            voice_analyzer=voi_analyzer_inst,
             cascade_path=args.cascade
         )
 

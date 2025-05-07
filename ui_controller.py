@@ -201,15 +201,24 @@ class EmotionGUI:
         history_item = self.detector.emotion_history[item_id]
 
         self.detail_widgets['emotion'].config(text=f"Emotion: {history_item.result}")
-        self.detail_widgets['location'].config(text=f"Face Location: {history_item.face_location}")
+
+        # Phân biệt hiển thị tùy theo nguồn
+        if history_item.source == "Webcam":
+            self.detail_widgets['location'].config(text=f"Face Location: {history_item.face_location}")
+        elif history_item.source == "Microphone":
+            dur_str = f"{history_item.duration} ms" if history_item.duration is not None else "Unknown"
+            self.detail_widgets['location'].config(text=f"Duration: {dur_str}")
+        else:
+            self.detail_widgets['location'].config(text="Location: N/A")
+
         self.detail_widgets['time'].config(text=f"Time: {history_item.timestamp.strftime('%H:%M:%S %d/%m/%Y')}")
         self.detail_widgets['source'].config(text=f"Source: {history_item.source}")
 
-        # Xoá các thanh emotion cũ
+        # Reset emotion distribution
         for widget in self.detail_widgets['emo_dist_frame'].winfo_children():
             widget.destroy()
 
-        # Thêm lại các dòng emotion
         for emo, val in history_item.emotion_distribution.items():
             label = ttk.Label(self.detail_widgets['emo_dist_frame'], text=f"{emo}: {val*100:.1f}%")
             label.pack(anchor='w')
+
