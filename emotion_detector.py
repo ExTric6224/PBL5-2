@@ -168,56 +168,49 @@ class EmotionDetector:
 
     # --- Luồng xử lý giọng nói (Placeholder) ---
     def _voice_processing_loop(self):
-        """Vòng lặp chạy trong luồng riêng cho xử lý âm thanh."""
+        """Vòng lặp xử lý âm thanh bằng VoiceAnalyzer mới."""
         print("Luồng âm thanh: Bắt đầu.")
         while not self.stop_event.is_set():
-            if self.can_send_to_UI :
-                if not self.enable_analysis_voice:
-                    # Gán xác suất 0.0 cho tất cả các nhãn cảm xúc
-                    probabilities = {label: 0.0 for label in self.voice_analyzer.emotion_labels}
-                    with self.emotion_lock:
-                        self.last_voice_emotion = "N/A"
-                        self.last_voice_probabilities = probabilities
-                    time.sleep(1)
+            if not self.enable_analysis_voice:
+                probabilities = {label: 0.0 for label in self.voice_analyzer.emotion_labels}
+                with self.emotion_lock:
+                    self.last_voice_emotion = "N/A"
+                    self.last_voice_probabilities = probabilities
+                time.sleep(1)
+                continue
+
+            try:
+                # Ghi âm và nhận mảng âm thanh
+                audio_array = self.voice_analyzer.record_audio()
+
+                # Dự đoán cảm xúc
+                probabilities = self.voice_analyzer.predict_emotion(audio_array)
+
+                if "error" in probabilities:
+                    print("Lỗi khi trích xuất đặc trưng. Bỏ qua lần này.")
                     continue
 
-                temp_wav = "temp_recording.wav"
-                try:
-                    # Ghi âm
-                    self.voice_analyzer.record_audio(filename=temp_wav, duration=3)
+                with self.emotion_lock:
+                    self.last_voice_emotion = max(probabilities, key=probabilities.get)
+                    self.last_voice_probabilities = probabilities
 
-                    # Trích xuất Mel Spectrogram
-                    mel = self.voice_analyzer.extract_mel_spectrogram(temp_wav)
-
-                    # Dự đoán cảm xúc
-                    probabilities = self.voice_analyzer.predict_emotion(mel)
-
-                    # Cập nhật cảm xúc giọng nói và lưu probabilities
-                    with self.emotion_lock:
-                        self.last_voice_emotion = max(probabilities, key=probabilities.get)
-                        self.last_voice_probabilities = probabilities
-
-                        # Ghi lịch sử
-                        emotion_item = EmotionHistoryItem(
-                            timestamp=datetime.now(),
-                            face_location=None,
-                            duration=3000,
-                            result=self.last_voice_emotion,
-                            source="Microphone",
+                    # Ghi lịch sử vào RAM (hoặc DB nếu bạn muốn)
+                    emotion_item = EmotionHistoryItem(
+                        timestamp=datetime.now(),
+                        face_location=None,
+                        duration=int(self.voice_analyzer.duration_sec * 1000),
+                        result=self.last_voice_emotion,
+                        source="Microphone",
                         emotion_distribution=probabilities
-                        )
-                        self.emotion_history.append(emotion_item)
+                    )
+                    self.emotion_history.append(emotion_item)
 
+            except Exception as e:
+                print(f"Lỗi trong luồng âm thanh: {e}")
 
-
-                except Exception as e:
-                    print(f"Lỗi trong luồng xử lý âm thanh: {e}")
-                    time.sleep(1)  # Thời gian chờ giữa các lần ghi âm
-            else:
-                # Nếu không gửi được đến UI, chỉ cần chờ một chút
-                time.sleep(2)
-                
+            time.sleep(1)
         print("Luồng âm thanh: Đã dừng.")
+
 
     # --- Điều khiển chính ---
     def start(self):
