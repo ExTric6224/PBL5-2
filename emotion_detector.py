@@ -6,6 +6,8 @@ import os
 import time
 import threading
 from datetime import datetime
+import socket
+import struct
 # import queue # Có thể vẫn cần sau này cho giao tiếp phức tạp hơn
 
 # --- Nhập các lớp Analyzer ---
@@ -63,6 +65,14 @@ class EmotionDetector:
         self.emotion_history = []  # Danh sách lưu trữ các EmotionHistoryItem
         self.emotion_history = load_emotion_history_from_db("emotion_log.db")
         self.can_send_to_UI = True;
+        
+        ##socket
+        self.socket = None
+        self.connection = None
+        self.audio_socket = None
+        self.audio_conn = None
+
+
 
     def _load_cascade(self, cascade_path):
         # (Giữ nguyên)  
@@ -74,12 +84,20 @@ class EmotionDetector:
         except Exception as e: print(f"Lỗi tải cascade: {e}"); return None
 
     def _init_webcam(self):
-        # (Giữ nguyên)
+        
         try:
-            cap = cv2.VideoCapture(0)
-            if not cap.isOpened(): raise IOError("Không thể mở webcam")
-            return cap
-        except Exception as e: print(f"Lỗi mở webcam: {e}"); return None
+            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.socket.bind(('0.0.0.0', 9999))  # Lắng nghe trên tất cả IP máy
+            self.socket.listen(1)
+            print("🕓 Đang chờ Raspberry Pi kết nối...")
+            self.conn, _ = self.socket.accept()
+            self.connection = self.conn.makefile('rb')
+            print("✅ Raspberry Pi đã kết nối.")
+            return True
+        except Exception as e:
+            print(f"Lỗi socket: {e}")
+            return False
+
 
     # --- Luồng xử lý khuôn mặt ---
     def _face_processing_loop(self):
@@ -90,7 +108,18 @@ class EmotionDetector:
 
         while not self.stop_event.is_set():
             if self.can_send_to_UI:
-                ret, frame = self.cap.read()
+                image_len_data = self.connection.read(4)
+                if not image_len_data:
+                    time.sleep(0.1)
+                    continue
+
+                image_len = struct.unpack('>L', image_len_data)[0]
+                image_data = self.connection.read(image_len)
+
+                image_array = np.frombuffer(image_data, dtype=np.uint8)
+                frame = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+                ret = frame is not None
+
                 if not ret:
                     print("Lỗi đọc frame từ webcam.")
                     time.sleep(0.5)
@@ -168,48 +197,57 @@ class EmotionDetector:
 
     # --- Luồng xử lý giọng nói (Placeholder) ---
     def _voice_processing_loop(self):
-        """Vòng lặp xử lý âm thanh bằng VoiceAnalyzer mới."""
-        print("Luồng âm thanh: Bắt đầu.")
+        import socket
+        import struct
+        import numpy as np
+
+        print("🎧 Đang chờ Raspberry gửi âm thanh...")
+
+        try:
+            self.audio_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.audio_socket.bind(('0.0.0.0', 9998))
+            self.audio_socket.listen(1)
+            self.audio_conn, _ = self.audio_socket.accept()
+            conn_file = self.audio_conn.makefile('rb')
+            print("✅ Đã kết nối âm thanh với Raspberry.")
+        except Exception as e:
+            print(f"Lỗi mở socket âm thanh: {e}")
+            return
+
         while not self.stop_event.is_set():
-            if not self.enable_analysis_voice:
-                probabilities = {label: 0.0 for label in self.voice_analyzer.emotion_labels}
-                with self.emotion_lock:
-                    self.last_voice_emotion = "N/A"
-                    self.last_voice_probabilities = probabilities
-                time.sleep(1)
-                continue
-
             try:
-                # Ghi âm và nhận mảng âm thanh
-                audio_array = self.voice_analyzer.record_audio()
+                raw_len = conn_file.read(4)
+                if not raw_len:
+                    time.sleep(0.1)
+                    continue
+                data_len = struct.unpack('>L', raw_len)[0]
+                audio_bytes = conn_file.read(data_len)
 
-                # Dự đoán cảm xúc
-                probabilities = self.voice_analyzer.predict_emotion(audio_array)
+                audio_array = np.frombuffer(audio_bytes, dtype=np.float32)
 
-                if "error" in probabilities:
-                    print("Lỗi khi trích xuất đặc trưng. Bỏ qua lần này.")
+                probs = self.voice_analyzer.predict_emotion(audio_array)
+                if "error" in probs:
+                    print("Lỗi khi phân tích âm thanh.")
                     continue
 
                 with self.emotion_lock:
-                    self.last_voice_emotion = max(probabilities, key=probabilities.get)
-                    self.last_voice_probabilities = probabilities
+                    self.last_voice_emotion = max(probs, key=probs.get)
+                    self.last_voice_probabilities = probs
 
-                    # Ghi lịch sử vào RAM (hoặc DB nếu bạn muốn)
-                    emotion_item = EmotionHistoryItem(
+                    self.emotion_history.append(EmotionHistoryItem(
                         timestamp=datetime.now(),
                         face_location=None,
                         duration=int(self.voice_analyzer.duration_sec * 1000),
                         result=self.last_voice_emotion,
                         source="Microphone",
-                        emotion_distribution=probabilities
-                    )
-                    self.emotion_history.append(emotion_item)
+                        emotion_distribution=probs
+                    ))
 
             except Exception as e:
-                print(f"Lỗi trong luồng âm thanh: {e}")
+                print(f"Lỗi khi nhận hoặc phân tích âm thanh: {e}")
+                time.sleep(1)
+        print("🔇 Dừng nhận âm thanh.")
 
-            time.sleep(1)
-        print("Luồng âm thanh: Đã dừng.")
 
 
     # --- Điều khiển chính ---
