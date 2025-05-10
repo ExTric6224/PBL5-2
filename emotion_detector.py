@@ -258,7 +258,7 @@ if __name__ == "__main__":
     from ui_controller import EmotionGUI
 
     ap = argparse.ArgumentParser(description="Chạy nhận diện cảm xúc đa luồng với UI Controller.")
-    ap.add_argument("--face_model", default="./models/efficientnetb0_emotion_final.keras", help="Đường dẫn face model")
+    ap.add_argument("--face_model", default="./models/emotion_model.h5", help="Đường dẫn face model")
     ap.add_argument("--cascade", default="src/haarcascade_frontalface_default.xml", help="Đường dẫn Haar cascade")
     args = ap.parse_args()
 

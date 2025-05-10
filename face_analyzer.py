@@ -5,9 +5,9 @@ import os
 
 
 class FaceAnalyzer:
-    def __init__(self, model_path='./models/efficientnetb0_emotion_final.keras'):
+    def __init__(self, model_path='./models/emotion_model.h5'):
         self.img_size = 48  # Kích thước ảnh đầu vào cho model
-        self.emotion_labels = ['anger', 'happy', 'neutral', 'sad', 'surprise']
+        self.emotion_labels = ['anger', 'disgust' ,'fear', 'happy', 'neutral', 'sad', 'surprise']
         self.model = self._load_model(model_path)
         if self.model is None:
             raise ValueError(f"❌ Không thể tải model từ {model_path}")
