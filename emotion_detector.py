@@ -6,6 +6,8 @@ import os
 import time
 import threading
 from datetime import datetime
+import socket
+import struct
 # import queue # Có thể vẫn cần sau này cho giao tiếp phức tạp hơn
 
 # --- Nhập các lớp Analyzer ---
@@ -63,6 +65,11 @@ class EmotionDetector:
         self.emotion_history = []  # Danh sách lưu trữ các EmotionHistoryItem
         self.emotion_history = load_emotion_history_from_db("emotion_log.db")
         self.can_send_to_UI = True;
+        
+        ##socket
+        self.socket = None
+        self.connection = None
+
 
     def _load_cascade(self, cascade_path):
         # (Giữ nguyên)  
@@ -74,12 +81,20 @@ class EmotionDetector:
         except Exception as e: print(f"Lỗi tải cascade: {e}"); return None
 
     def _init_webcam(self):
-        # (Giữ nguyên)
+        
         try:
-            cap = cv2.VideoCapture(0)
-            if not cap.isOpened(): raise IOError("Không thể mở webcam")
-            return cap
-        except Exception as e: print(f"Lỗi mở webcam: {e}"); return None
+            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.socket.bind(('0.0.0.0', 9999))  # Lắng nghe trên tất cả IP máy
+            self.socket.listen(1)
+            print("🕓 Đang chờ Raspberry Pi kết nối...")
+            self.conn, _ = self.socket.accept()
+            self.connection = self.conn.makefile('rb')
+            print("✅ Raspberry Pi đã kết nối.")
+            return True
+        except Exception as e:
+            print(f"Lỗi socket: {e}")
+            return False
+
 
     # --- Luồng xử lý khuôn mặt ---
     def _face_processing_loop(self):
@@ -90,7 +105,18 @@ class EmotionDetector:
 
         while not self.stop_event.is_set():
             if self.can_send_to_UI:
-                ret, frame = self.cap.read()
+                image_len_data = self.connection.read(4)
+                if not image_len_data:
+                    time.sleep(0.1)
+                    continue
+
+                image_len = struct.unpack('>L', image_len_data)[0]
+                image_data = self.connection.read(image_len)
+
+                image_array = np.frombuffer(image_data, dtype=np.uint8)
+                frame = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+                ret = frame is not None
+
                 if not ret:
                     print("Lỗi đọc frame từ webcam.")
                     time.sleep(0.5)
