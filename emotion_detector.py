@@ -57,7 +57,7 @@ class EmotionDetector:
         self.enable_analysis_face = enable_analysis_face
         self.enable_analysis_voice = enable_analysis_voice
         self.emotion_history = []  # Danh sách lưu trữ các EmotionHistoryItem
-        self.emotion_history = load_emotion_history_from_db("emotion_log.db")
+        self.emotion_history = load_emotion_history_from_db("./database/emotion_log.db")
         self.can_send_to_UI = True;
         
         # Khởi tạo MediaPipe Face Detection
@@ -99,7 +99,6 @@ class EmotionDetector:
                 frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 # Phát hiện khuôn mặt trên ảnh màu
                 results = self.face_detection.process(frame_rgb)
-
                 if results.detections:
                     for detection in results.detections:
                         # Lấy tọa độ hình chữ nhật bao quanh khuôn mặt
@@ -335,8 +334,8 @@ if __name__ == "__main__":
         print("Bắt đầu quá trình dọn dẹp cuối cùng...")
         if main_detector:
             from database.db_utils import save_all_emotions_to_db
-            save_all_emotions_to_db("emotion_log.db", main_detector.emotion_history)
-            print("✅ Đã lưu toàn bộ lịch sử cảm xúc vào cơ sở dữ liệu.")
+            save_all_emotions_to_db("./database/emotion_log.db", main_detector.emotion_history)
+            print("✅ Đã lưu toàn bộ lị0ch sử cảm xúc vào cơ sở dữ liệu.")
             print("Yêu cầu EmotionDetector dừng các luồng...")
             main_detector.stop() # Đợi các luồng kết thúc
             main_detector.cleanup() # Chạy cleanup của detector (nếu có)
