@@ -8,7 +8,7 @@ import os
 
 class VoiceAnalyzer:
     def __init__(self,
-                 model_path="./models/best_ser_custom_resnet_model.keras",
+                 model_path="./models/best_crnn_model.keras",
                  emotion_classes_path="emotion_classes.json",
                  feature_params_path="feature_extraction_params.json"):
         

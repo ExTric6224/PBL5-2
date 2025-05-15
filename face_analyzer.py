@@ -1,13 +1,12 @@
 import numpy as np
 import cv2
-from tensorflow.keras.models import load_model
 import os
-
+from tensorflow.keras.models import load_model
 
 class FaceAnalyzer:
-    def __init__(self, model_path='./models/emotion_model.h5'):
-        self.img_size = 48  # Kích thước ảnh đầu vào cho model
-        self.emotion_labels = ['anger', 'disgust' ,'fear', 'happy', 'neutral', 'sad', 'surprise']
+    def __init__(self, model_path='./models/emotion_final4.keras'):
+        self.img_size = 32  # Kích thước ảnh đầu vào cho model
+        self.emotion_labels = ['Surprise', 'Fear', 'Disgust', 'Happiness', 'Sadness', 'Anger', 'Neutral']
         self.model = self._load_model(model_path)
         if self.model is None:
             raise ValueError(f"❌ Không thể tải model từ {model_path}")
@@ -23,29 +22,32 @@ class FaceAnalyzer:
             print(f"❌ Lỗi khi tải model: {e}")
             return None
 
-    def analyzeFace(self, roi_gray):
+    def analyzeFace(self, face_crop):
         """
-        Dự đoán cảm xúc từ một vùng khuôn mặt ảnh xám.
+        Dự đoán cảm xúc từ một vùng ảnh mặt RGB.
         Args:
-            roi_gray (numpy.ndarray): ảnh mặt (gray, 2D)
+            face_rgb (numpy.ndarray): ảnh mặt RGB (3 kênh)
 
         Returns:
             dict: {emotion: probability} hoặc None nếu lỗi
         """
         try:
-            # Resize và chuẩn hóa ảnh
-            face_resized = cv2.resize(roi_gray, (self.img_size, self.img_size))
-            face_normalized = face_resized / 255.0
-            face_input = np.expand_dims(face_normalized, axis=(0, -1))  # (1, 48, 48, 1)
+            # Resize về 32x32 và chuẩn hóa
+            face_crop_resized = cv2.resize(face_crop, (32, 32))
+            face_crop_normalized = face_crop_resized / 255.0
+            face_crop_reshaped = np.expand_dims(face_crop_normalized, axis=0)
 
-            # Dự đoán
-            predictions = self.model.predict(face_input, verbose=0)[0]
+            # Dự đoán cảm xúc - sửa lỗi truy cập mảng
+            predictions = self.model.predict(face_crop_reshaped,verbose=0)
+            # Lấy mảng đầu tiên từ batch predictions (batch size = 1)
+            prediction_values = predictions[0]
+            
             result = {
-                self.emotion_labels[i]: float(predictions[i])
+                self.emotion_labels[i]: float(prediction_values[i])
                 for i in range(len(self.emotion_labels))
             }
             return result
-
         except Exception as e:
             print(f"❌ Lỗi khi phân tích khuôn mặt: {e}")
             return None
+

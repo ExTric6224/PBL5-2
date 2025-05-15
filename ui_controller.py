@@ -147,6 +147,7 @@ class EmotionGUI:
         self.tree.column("source", width=100)
 
         self.tree.pack(fill='both', expand=True)
+        ttk.Button(frame_table, text="🧹 Delete All", bootstyle="danger-outline", command=self.delete_all_history).pack(pady=(10, 0))
 
         # Thêm dữ liệu từ history
         for i, item in enumerate(self.detector.emotion_history):
@@ -252,3 +253,12 @@ class EmotionGUI:
         self.detector.can_send_to_UI = True
         print("✅ Đã bật lại gửi dữ liệu cho UI sau khi đóng lịch sử.")
         window.destroy()
+    def delete_all_history(self):
+        if not self.detector.emotion_history:
+            print("Lịch sử cảm xúc trống, không có gì để xóa.")
+            return
+
+        self.detector.emotion_history.clear()
+        self.tree.delete(*self.tree.get_children())
+        print("🧹 Đã xóa toàn bộ lịch sử cảm xúc.")
+
